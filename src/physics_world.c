@@ -1124,7 +1124,7 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 	// Hertz values get reduced for large time steps
 	float contactHertz = b3MinFloat( world->contactHertz, 0.125f * context.inv_h );
 	context.contactSoftness = b3MakeSoft( contactHertz, world->contactDampingRatio, context.h );
-	context.staticSoftness = b3MakeSoft( 2.0f * contactHertz, 0.5f * world->contactDampingRatio, context.h );
+	context.staticSoftness = context.contactSoftness;
 
 	context.restitutionThreshold = world->restitutionThreshold;
 	context.maxLinearVelocity = world->maxLinearSpeed;
@@ -2030,6 +2030,25 @@ bool b3World_IsWarmStartingEnabled( b3WorldId worldId )
 {
 	b3World* world = b3GetWorldFromId( worldId );
 	return world->enableWarmStarting;
+}
+
+int b3World_GetAwakeBodies( b3WorldId worldId, b3BodyId* bodyArray, int capacity )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL || bodyArray == NULL || capacity <= 0 )
+	{
+		return 0;
+	}
+
+	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	int count = awakeSet->bodySims.count < capacity ? awakeSet->bodySims.count : capacity;
+
+	for ( int i = 0; i < count; ++i )
+	{
+		bodyArray[i] = b3MakeBodyId( world, awakeSet->bodySims.data[i].bodyId );
+	}
+
+	return count;
 }
 
 int b3World_GetAwakeBodyCount( b3WorldId worldId )

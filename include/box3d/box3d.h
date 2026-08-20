@@ -206,6 +206,8 @@ B3_API bool b3World_IsWarmStartingEnabled( b3WorldId worldId );
 /// Get the number of awake bodies
 B3_API int b3World_GetAwakeBodyCount( b3WorldId worldId );
 
+B3_API int b3World_GetAwakeBodies( b3WorldId worldId, b3BodyId* bodyArray, int capacity );
+
 /// Get the current world performance profile
 B3_API b3Profile b3World_GetProfile( b3WorldId worldId );
 

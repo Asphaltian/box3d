@@ -1783,8 +1783,6 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 	}
 
 	// Work in shapeA coordinates
-	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
-
 	float linearSlop = B3_LINEAR_SLOP;
 	const b3HullHalfEdge* edgesA = b3GetHullEdges( hullA );
 	const b3Plane* planesA = b3GetHullPlanes( hullA );
@@ -1815,7 +1813,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			b3Vec3 support = b3TransformPoint( transformBtoA, pointsB[vertexIndex] );
 			float separation = b3PlaneSeparation( plane, support );
 
-			if ( separation >= speculativeDistance )
+			if ( separation > 0.0f )
 			{
 				// Cache hit, shapes are separated
 				cache->hit = 1;
@@ -1854,7 +1852,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			b3Vec3 support = b3InvTransformPoint( transformBtoA, pointsA[vertexIndex] );
 			float separation = b3PlaneSeparation( plane, support );
 
-			if ( separation >= speculativeDistance )
+			if ( separation > 0.0f )
 			{
 				// Cache hit, shapes are separated
 				cache->hit = 1;
@@ -1928,7 +1926,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					axis = b3Normalize( axis );
 					float separation = b3Dot( axis, b3Sub( qA, qB ) );
 
-					if ( separation > speculativeDistance )
+					if ( separation > 0.0f )
 					{
 						// Cache hit, shapes are separated
 						cache->hit = 1;
@@ -2030,6 +2028,12 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 
 	B3_VALIDATE( axisQuery.faceA.separation <= speculativeDistance || axisQuery.faceB.separation <= speculativeDistance ||
 				 axisQuery.edge.separation <= speculativeDistance );
+
+	if ( axisQuery.faceA.separation > 0.0f || axisQuery.faceB.separation > 0.0f || axisQuery.edge.separation > 0.0f )
+	{
+		*cache = (b3SATCache){ 0 };
+		return;
+	}
 
 	if ( axisQuery.faceA.separation > axisQuery.faceB.separation )
 	{
