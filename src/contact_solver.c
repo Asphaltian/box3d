@@ -1849,23 +1849,42 @@ void b3ApplyRestitution_Convex( b3SolverBlock block, b3StepContext* context )
 		int pointCount = b3MaxInt( pointCount1, pointCount2 );
 		B3_VALIDATE( 0 < pointCount && pointCount <= B3_MAX_MANIFOLD_POINTS );
 
-		// Single gather for all manifolds
-		b3BodyStateW bA = b3GatherBodies( states, c->indexA );
-		b3BodyStateW bB = b3GatherBodies( states, c->indexB );
-
 		// Create a mask based on restitution so that lanes with no restitution are not affected
 		// by the calculations below.
 		b3FloatW restitutionMask = b3EqualsW( c->restitution, zero );
+
+		// Set effective mass to zero if restitution should not be applied. This needs none of the
+		// body state, so a constraint with nothing left to bounce is skipped before gathering it.
+		// A resting stack leaves every lane masked and would otherwise gather and scatter for nothing.
+		b3FloatW masses[B3_MAX_MANIFOLD_POINTS];
+		b3FloatW anyMass = zero;
 
 		for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 		{
 			b3ContactConstraintPointWide* cp = c->points + pointIndex;
 
-			// Set effective mass to zero if restitution should not be applied
 			b3FloatW mask1 = b3GreaterThanW( b3AddW( cp->relativeVelocities, threshold ), zero );
 			b3FloatW mask2 = b3EqualsW( cp->totalNormalImpulses, zero );
 			b3FloatW mask = b3OrW( b3OrW( mask1, mask2 ), restitutionMask );
-			b3FloatW mass = b3BlendW( cp->normalMasses, zero, mask );
+
+			masses[pointIndex] = b3BlendW( cp->normalMasses, zero, mask );
+			anyMass = b3OrW( anyMass, masses[pointIndex] );
+		}
+
+		if ( b3AllZeroW( anyMass ) )
+		{
+			continue;
+		}
+
+		// Single gather for all manifolds
+		b3BodyStateW bA = b3GatherBodies( states, c->indexA );
+		b3BodyStateW bB = b3GatherBodies( states, c->indexB );
+
+		for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
+		{
+			b3ContactConstraintPointWide* cp = c->points + pointIndex;
+
+			b3FloatW mass = masses[pointIndex];
 
 			// Fixed anchors for impulses
 			b3Vec3W rA = cp->anchorAs;
