@@ -54,6 +54,8 @@ void b3WakeSolverSet( b3World* world, int setIndex )
 
 		// Reset sleep timer
 		body->sleepTime = 0.0f;
+		body->sleepDeltaPos = b3Vec3_zero;
+		body->sleepDeltaAngles = (b3Quat){ b3Vec3_zero, 0.0f };
 
 		b3BodySim* simDst = b3Array_Emplace( awakeSet->bodySims );
 		memcpy( simDst, simSrc, sizeof( b3BodySim ) );

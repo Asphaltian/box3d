@@ -420,8 +420,7 @@ typedef struct b3SurfaceMaterial
 	/// @see b3HexColor
 	uint32_t customColor;
 
-	/// Explicit padding. Must be zero.
-	uint32_t padding;
+	float jointK;
 } b3SurfaceMaterial;
 
 /// Use this to initialize your surface material
@@ -2594,6 +2593,10 @@ typedef struct b3ManifoldPoint
 
 	/// Cached separation used for contact recycling
 	float baseSeparation;
+
+	float firstApproach;
+
+	float threshold;
 
 	/// The impulse along the manifold normal vector. Since Box3D uses sub-stepping, this is
 	/// result from the final sub-step.

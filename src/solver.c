@@ -658,6 +658,16 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 }
 
 // Implements b3ParallelForCallback
+static float b3MaxAxisLength( b3Vec3 v )
+{
+	return b3MaxFloat( b3AbsFloat( v.x ), b3MaxFloat( b3AbsFloat( v.y ), b3AbsFloat( v.z ) ) );
+}
+
+static float b3MaxComponent( b3Quat q )
+{
+	return b3MaxFloat( b3MaxAxisLength( q.v ), b3AbsFloat( q.s ) );
+}
+
 static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex, void* context )
 {
 	b3TracyCZoneNC( finalize_bodies, "Finalize", b3_colorMediumSeaGreen, true );
@@ -692,6 +702,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 
 		b3Vec3 v = state->linearVelocity;
 		b3Vec3 w = state->angularVelocity;
+		b3Vec3 deltaPosition = state->deltaPosition;
 		b3Vec3 localOmega = b3InvRotateVector( sim->transform.q, w );
 		b3Vec3 localDeltaRotation = b3InvRotateVector( sim->transform.q, state->deltaRotation.v );
 
@@ -704,8 +715,9 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		B3_ASSERT( b3IsValidVec3( v ) );
 		B3_ASSERT( b3IsValidVec3( w ) );
 
-		sim->center = b3OffsetPos( sim->center, state->deltaPosition );
-		sim->transform.q = b3NormalizeQuat( b3MulQuat( state->deltaRotation, sim->transform.q ) );
+		sim->center = b3OffsetPos( sim->center, deltaPosition );
+		b3Quat rotation = sim->transform.q;
+		sim->transform.q = b3NormalizeQuat( b3MulQuat( state->deltaRotation, rotation ) );
 
 		// Use the velocity of the farthest point on the body to account for rotation.
 		b3Vec3 velocityArc = b3ModifiedCross( b3Abs( localOmega ), sim->maxExtent );
@@ -715,11 +727,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		// q = [sin(theta/2) * v, cos(theta/2)]
 		// for small angles abs(theta) ~= 2 * length(sin(theta/2) * v)
 		b3Vec3 rotationArc = b3ModifiedCross( b3Abs( localDeltaRotation ), sim->maxExtent );
-		float maxDeltaPosition = b3Length( state->deltaPosition ) + 2.0f * b3Length( rotationArc );
-
-		// Position correction is not as important for sleep as true velocity.
-		float positionSleepFactor = 0.5f;
-		float sleepVelocity = b3MaxFloat( maxVelocity, positionSleepFactor * invTimeStep * maxDeltaPosition );
+		float maxDeltaPosition = b3Length( deltaPosition ) + 2.0f * b3Length( rotationArc );
 
 		// reset state deltas
 		state->deltaPosition = b3Vec3_zero;
@@ -730,6 +738,18 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		// cache miss here, however I need the shape list below
 		b3Body* body = bodies + sim->bodyId;
 		body->bodyMoveIndex = simIndex;
+
+		float retain = 1.0f - B3_SLEEP_AVERAGE_WEIGHT;
+		float radius = b3Length( sim->maxExtent );
+		b3Quat spin = { b3MulSV( radius, b3Sub( sim->transform.q.v, rotation.v ) ),
+						radius * ( sim->transform.q.s - rotation.s ) };
+
+		body->sleepDeltaPos = b3MulSV( retain, b3Sub( body->sleepDeltaPos, deltaPosition ) );
+		body->sleepDeltaAngles.v = b3MulSV( retain, b3Sub( body->sleepDeltaAngles.v, spin.v ) );
+		body->sleepDeltaAngles.s = retain * ( body->sleepDeltaAngles.s - spin.s );
+
+		float drift = b3MaxFloat( b3MaxAxisLength( body->sleepDeltaPos ), b3MaxComponent( body->sleepDeltaAngles ) );
+		float sleepVelocity = drift * invTimeStep * ( B3_SLEEP_AVERAGE_WEIGHT / retain );
 		body->sleepVelocity = sleepVelocity;
 
 		moveEvents[simIndex].userData = body->userData;

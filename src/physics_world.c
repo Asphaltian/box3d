@@ -1124,7 +1124,7 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 	// Hertz values get reduced for large time steps
 	float contactHertz = b3MinFloat( world->contactHertz, 0.125f * context.inv_h );
 	context.contactSoftness = b3MakeSoft( contactHertz, world->contactDampingRatio, context.h );
-	context.staticSoftness = context.contactSoftness;
+	context.staticSoftness = b3MakeSoft( 2.0f * contactHertz, 0.5f * world->contactDampingRatio, context.h );
 
 	context.restitutionThreshold = world->restitutionThreshold;
 	context.maxLinearVelocity = world->maxLinearSpeed;

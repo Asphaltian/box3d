@@ -144,6 +144,8 @@ typedef struct b3Contact
 	// Mixed friction and restitution
 	float friction;
 
+	float jointK;
+
 	// Usage determined by b3_simMeshContact in simFlags
 	union
 	{

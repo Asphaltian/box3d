@@ -10,6 +10,11 @@ typedef struct b3ManifoldConstraintPoint
 {
 	b3Vec3 rA, rB;
 	float baseSeparation;
+	float firstApproach;
+	float threshold;
+	float lastNormalImpulse;
+	float normalVel;
+	b3Vec2 frictionImpulse;
 	float relativeVelocity;
 	float normalImpulse;
 	float totalNormalImpulse;
@@ -46,6 +51,7 @@ typedef struct b3ContactConstraint
 	b3Softness softness;
 	b3Matrix3 rollingMass;
 	float friction;
+	float jointK;
 	float restitution;
 	float rollingResistance;
 	int manifoldCount;

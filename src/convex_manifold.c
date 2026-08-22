@@ -1773,7 +1773,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 #if B3_SIMD_COLLIDE_HULLS == 1
 
 void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
-					 b3Transform transformBtoA, b3SATCache* cache )
+					 b3Transform transformBtoA, b3SATCache* cache, float keepDistance )
 {
 	manifold->pointCount = 0;
 
@@ -1813,7 +1813,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			b3Vec3 support = b3TransformPoint( transformBtoA, pointsB[vertexIndex] );
 			float separation = b3PlaneSeparation( plane, support );
 
-			if ( separation > 0.0f )
+			if ( separation > keepDistance )
 			{
 				// Cache hit, shapes are separated
 				cache->hit = 1;
@@ -1852,7 +1852,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			b3Vec3 support = b3InvTransformPoint( transformBtoA, pointsA[vertexIndex] );
 			float separation = b3PlaneSeparation( plane, support );
 
-			if ( separation > 0.0f )
+			if ( separation > keepDistance )
 			{
 				// Cache hit, shapes are separated
 				cache->hit = 1;
@@ -1926,7 +1926,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					axis = b3Normalize( axis );
 					float separation = b3Dot( axis, b3Sub( qA, qB ) );
 
-					if ( separation > 0.0f )
+					if ( separation > keepDistance )
 					{
 						// Cache hit, shapes are separated
 						cache->hit = 1;
@@ -2026,10 +2026,8 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 		return;
 	}
 
-	B3_VALIDATE( axisQuery.faceA.separation <= speculativeDistance || axisQuery.faceB.separation <= speculativeDistance ||
-				 axisQuery.edge.separation <= speculativeDistance );
-
-	if ( axisQuery.faceA.separation > 0.0f || axisQuery.faceB.separation > 0.0f || axisQuery.edge.separation > 0.0f )
+	if ( axisQuery.faceA.separation > keepDistance || axisQuery.faceB.separation > keepDistance ||
+		 axisQuery.edge.separation > keepDistance )
 	{
 		*cache = (b3SATCache){ 0 };
 		return;

@@ -527,7 +527,8 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		else
 		{
 			B3_ASSERT( typeB == b3_hullShape );
-			b3CollideHulls( &geomManifold, pointCapacity, shapeA->hull, shapeB->hull, transformBtoA, &cache->satCache );
+			b3CollideHulls( &geomManifold, pointCapacity, shapeA->hull, shapeB->hull, transformBtoA, &cache->satCache,
+							B3_CONTACT_KEEP_DISTANCE );
 			world->taskContexts.data[workerIndex].satCallCount += 1;
 			world->taskContexts.data[workerIndex].satCacheHitCount += cache->satCache.hit;
 		}
@@ -578,6 +579,8 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		target->featureId = b3MakeFeatureId( source->pair );
 		target->triangleIndex = B3_NULL_INDEX;
 		target->normalVelocity = 0.0f;
+		target->firstApproach = 0.0f;
+		target->threshold = 0.0f;
 	}
 
 	// Copy impulses from old points
@@ -594,6 +597,8 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 			if ( pt2->featureId == pt1->featureId )
 			{
 				pt2->normalImpulse = pt1->normalImpulse;
+				pt2->firstApproach = pt1->firstApproach;
+				pt2->threshold = pt1->threshold;
 				pt2->persisted = true;
 
 				// claimed
@@ -645,6 +650,7 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 	// Keep these updated in case the values on the shapes are modified
 	contact->friction =
 		world->frictionCallback( materialA->friction, materialA->userMaterialId, materialB->friction, materialB->userMaterialId );
+	contact->jointK = b3MinFloat( materialA->jointK, materialB->jointK );
 	contact->restitution = world->restitutionCallback( materialA->restitution, materialA->userMaterialId, materialB->restitution,
 													   materialB->userMaterialId );
 

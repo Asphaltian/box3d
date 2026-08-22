@@ -87,6 +87,12 @@ B3_API float b3GetStallThreshold( void );
 /// The default contact recycling distance.
 #define B3_CONTACT_RECYCLE_DISTANCE ( 10.0f * B3_LINEAR_SLOP )
 
+#define B3_CONTACT_KEEP_DISTANCE ( 0.01f * B3_LINEAR_SLOP )
+
+#define B3_CONTACT_APPROACH_DEPTH ( 0.0005f * b3GetLengthUnitsPerMeter() )
+
+#define B3_CONTACT_APPROACH_DECAY 0.999f
+
 /// The default contact recycling world angle threshold. For performance this value
 /// is cos(angle/2)^2. This value corresponds to 10 degrees.
 #define B3_CONTACT_RECYCLE_ANGULAR_DISTANCE ( 0.99240388f )
@@ -101,7 +107,9 @@ B3_API float b3GetStallThreshold( void );
 #define B3_AABB_MARGIN_FRACTION 0.125f
 
 /// The time that a body must be still before it will go to sleep. In seconds.
-#define B3_TIME_TO_SLEEP 0.5f
+#define B3_TIME_TO_SLEEP 0.0875f
+
+#define B3_SLEEP_AVERAGE_WEIGHT 0.25f
 
 /// The maximum number of contact points between two touching shapes.
 #define B3_MAX_MANIFOLD_POINTS 4
