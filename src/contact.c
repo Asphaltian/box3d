@@ -581,6 +581,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		target->normalVelocity = 0.0f;
 		target->firstApproach = 0.0f;
 		target->threshold = 0.0f;
+		target->frictionImpulse = b3Vec3_zero;
 	}
 
 	// Copy impulses from old points
@@ -599,6 +600,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 				pt2->normalImpulse = pt1->normalImpulse;
 				pt2->firstApproach = pt1->firstApproach;
 				pt2->threshold = pt1->threshold;
+				pt2->frictionImpulse = pt1->frictionImpulse;
 				pt2->persisted = true;
 
 				// claimed

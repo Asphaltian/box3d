@@ -177,6 +177,13 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 				b3Vec3 tangent2 = b3Cross( tangent1, normal );
 
 				constraint->pointCount = pointCount;
+				constraint->persisted = false;
+
+				for ( int j = 0; j < pointCount; ++j )
+				{
+					constraint->persisted = constraint->persisted || manifold->points[j].persisted;
+				}
+
 				constraint->normal = normal;
 				constraint->tangent1 = tangent1;
 				constraint->tangent2 = tangent2;
@@ -204,7 +211,9 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 					cp->threshold = mp->threshold;
 					cp->lastNormalImpulse = 0.0f;
 					cp->normalVel = 0.0f;
-					cp->frictionImpulse = (b3Vec2){ 0.0f, 0.0f };
+					cp->perpVel = (b3Vec2){ 0.0f, 0.0f };
+					cp->frictionImpulse.x = warmStartScale * b3Dot( mp->frictionImpulse, tangent1 );
+					cp->frictionImpulse.y = warmStartScale * b3Dot( mp->frictionImpulse, tangent2 );
 					cp->normalImpulse = warmStartScale * mp->normalImpulse;
 					cp->totalNormalImpulse = 0.0f;
 
@@ -457,7 +466,7 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context, bool use
 						b3Vec3 ds = b3Add( dp, b3Sub( b3RotateVector( dqB, rB ), b3RotateVector( dqA, rA ) ) );
 						float length = b3Dot( ds, normal ) + cp->baseSeparation;
 
-						if ( length < 0.0f )
+						if ( constraint->persisted && length < 0.0f )
 						{
 							cp->threshold = cp->threshold != 0.0f
 												? ( cp->threshold + depth ) * B3_CONTACT_APPROACH_DECAY - depth
@@ -474,7 +483,8 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context, bool use
 						}
 
 						float k = cp->normalVel < 0.0f ? jointK : elasticJointK;
-						float forceMag = length <= cp->threshold ? ( cp->firstApproach - length ) * k : 0.0f;
+						float forceMag =
+							constraint->persisted && length <= cp->threshold ? ( cp->firstApproach - length ) * k : 0.0f;
 						float newImpulse = b3MaxFloat( forceMag, 0.0f ) * h;
 						float deltaImpulse = newImpulse - cp->normalImpulse;
 
@@ -497,11 +507,6 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context, bool use
 				float kApplied = 0.2f * jointK;
 				float travel = kApplied * h * h;
 
-				b3Vec3 entryVA = vA;
-				b3Vec3 entryWA = wA;
-				b3Vec3 entryVB = vB;
-				b3Vec3 entryWB = wB;
-
 				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 				{
 					b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
@@ -509,14 +514,7 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context, bool use
 					b3Vec3 rA = cp->rA;
 					b3Vec3 rB = cp->rB;
 
-					b3Vec3 vrA = b3Add( entryVA, b3Cross( entryWA, rA ) );
-					b3Vec3 vrB = b3Add( entryVB, b3Cross( entryWB, rB ) );
-					b3Vec3 vr = b3Sub( vrB, vrA );
-
-					b3Vec2 vt = {
-						b3Dot( vr, tangent1 ) - constraint->tangentVelocity1,
-						b3Dot( vr, tangent2 ) - constraint->tangentVelocity2,
-					};
+					b3Vec2 vt = cp->perpVel;
 
 					b3Vec2 newImpulse = {
 						cp->frictionImpulse.x - travel * vt.x,
@@ -549,8 +547,13 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context, bool use
 
 					b3Vec3 vrA = b3Add( vA, b3Cross( wA, cp->rA ) );
 					b3Vec3 vrB = b3Add( vB, b3Cross( wB, cp->rB ) );
+					b3Vec3 vr = b3Sub( vrB, vrA );
 
-					cp->normalVel = b3Dot( b3Sub( vrB, vrA ), normal );
+					cp->normalVel = b3Dot( vr, normal );
+					cp->perpVel = (b3Vec2){
+						b3Dot( vr, constraint->tangent1 ) - constraint->tangentVelocity1,
+						b3Dot( vr, constraint->tangent2 ) - constraint->tangentVelocity2,
+					};
 				}
 
 				continue;
@@ -896,6 +899,8 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 					mp->normalImpulse = cp->normalImpulse;
 					mp->firstApproach = cp->firstApproach;
 					mp->threshold = cp->threshold;
+					mp->frictionImpulse =
+						b3Blend2( cp->frictionImpulse.x, constraint->tangent1, cp->frictionImpulse.y, constraint->tangent2 );
 					mp->totalNormalImpulse = cp->totalNormalImpulse;
 					mp->normalVelocity = cp->relativeVelocity;
 
@@ -1085,6 +1090,7 @@ typedef struct b3ContactConstraintPointWide
 	b3FloatW thresholds;
 	b3FloatW lastNormalImpulses;
 	b3FloatW normalVels;
+	b3Vec2W perpVels;
 	b3Vec2W frictionImpulses;
 	b3FloatW normalImpulses;
 	b3FloatW totalNormalImpulses;
@@ -1120,6 +1126,7 @@ typedef struct b3ContactConstraintWide
 	b3Vec3W rollingImpulse;
 	b3FloatW friction;
 	b3FloatW jointK;
+	b3FloatW persisteds;
 	b3FloatW rollingResistance;
 	b3FloatW tangentVelocity1;
 	b3FloatW tangentVelocity2;
@@ -1545,6 +1552,15 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 				int pointCount = manifold->pointCount;
 				constraint->pointCounts[lane] = pointCount;
 
+				bool persisted = false;
+
+				for ( int j = 0; j < pointCount; ++j )
+				{
+					persisted = persisted || manifold->points[j].persisted;
+				}
+
+				( (float*)&constraint->persisteds )[lane] = persisted ? 1.0f : 0.0f;
+
 				b3Vec3 centerA = b3Vec3_zero;
 				b3Vec3 centerB = b3Vec3_zero;
 				float totalFrictionWeight = 0.0f;
@@ -1578,8 +1594,8 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					( (float*)&cp->firstApproaches )[lane] = mp->firstApproach;
 					( (float*)&cp->thresholds )[lane] = mp->threshold;
 					( (float*)&cp->lastNormalImpulses )[lane] = 0.0f;
-					( (float*)&cp->frictionImpulses.x )[lane] = 0.0f;
-					( (float*)&cp->frictionImpulses.y )[lane] = 0.0f;
+					( (float*)&cp->frictionImpulses.x )[lane] = warmStartScale * b3Dot( mp->frictionImpulse, tangent1 );
+					( (float*)&cp->frictionImpulses.y )[lane] = warmStartScale * b3Dot( mp->frictionImpulse, tangent2 );
 
 					( (float*)&cp->normalImpulses )[lane] = warmStartScale * mp->normalImpulse;
 					( (float*)&cp->totalNormalImpulses )[lane] = 0.0f;
@@ -1592,8 +1608,11 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					// Save relative velocity for restitution
 					b3Vec3 vrA = b3Add( vA, b3Cross( wA, rA ) );
 					b3Vec3 vrB = b3Add( vB, b3Cross( wB, rB ) );
-					( (float*)&cp->relativeVelocities )[lane] = b3Dot( normal, b3Sub( vrB, vrA ) );
-					( (float*)&cp->normalVels )[lane] = b3Dot( normal, b3Sub( vrB, vrA ) );
+					b3Vec3 vr = b3Sub( vrB, vrA );
+					( (float*)&cp->relativeVelocities )[lane] = b3Dot( normal, vr );
+					( (float*)&cp->normalVels )[lane] = b3Dot( normal, vr );
+					( (float*)&cp->perpVels.x )[lane] = 0.0f;
+					( (float*)&cp->perpVels.y )[lane] = 0.0f;
 				}
 
 				float invWeight = 1.0f / totalFrictionWeight;
@@ -1675,6 +1694,8 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					( (float*)&cp->thresholds )[lane] = 0.0f;
 					( (float*)&cp->lastNormalImpulses )[lane] = 0.0f;
 					( (float*)&cp->normalVels )[lane] = 0.0f;
+					( (float*)&cp->perpVels.x )[lane] = 0.0f;
+					( (float*)&cp->perpVels.y )[lane] = 0.0f;
 					( (float*)&cp->frictionImpulses.x )[lane] = 0.0f;
 					( (float*)&cp->frictionImpulses.y )[lane] = 0.0f;
 					( (float*)&cp->normalImpulses )[lane] = 0.0f;
@@ -1814,6 +1835,10 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 		{
 			b3ContactConstraintPointWide* cp = c->points + pointIndex;
 
+			// A lane with fewer points than the widest one pads the rest with zero mass. Their separation
+			// still drifts with the bodies, so the spring has to skip them the way the impulse solve does.
+			b3FloatW sprungPoint = b3AndW( sprung, b3GreaterThanW( cp->normalMasses, b3ZeroW() ) );
+
 			// Fixed anchor points for applying impulses
 			b3Vec3W rA = cp->anchorAs;
 			b3Vec3W rB = cp->anchorBs;
@@ -1828,6 +1853,10 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 			b3Vec3W ds = b3AddVW( dp, b3SubVW( rsB, rsA ) );
 			b3FloatW length = b3AddW( b3DotW( c->normal, ds ), cp->baseSeparations );
 
+			// A manifold whose points all changed identity is a body plowing through rather than resting on
+			// another. The engine's block-block narrowphase rejects that outright, so no spring there either.
+			b3FloatW held = b3AndW( sprungPoint, b3GreaterThanW( c->persisteds, b3ZeroW() ) );
+
 			if ( useBias )
 			{
 				b3FloatW depth = b3SplatW( B3_CONTACT_APPROACH_DEPTH );
@@ -1841,12 +1870,11 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 				b3FloatW firstApproach =
 					b3BlendW( b3SubW( b3MulW( b3AddW( cp->firstApproaches, depth ), decay ), depth ), length, fresh );
 
-				cp->thresholds = b3BlendW( cp->thresholds, b3BlendW( b3ZeroW(), threshold, pressing ), sprung );
-				cp->firstApproaches =
-					b3BlendW( cp->firstApproaches, b3BlendW( b3ZeroW(), firstApproach, pressing ), sprung );
+				cp->thresholds = b3BlendW( cp->thresholds, b3BlendW( b3ZeroW(), threshold, pressing ), held );
+				cp->firstApproaches = b3BlendW( cp->firstApproaches, b3BlendW( b3ZeroW(), firstApproach, pressing ), held );
 			}
 
-			b3FloatW open = b3AndW( b3GreaterThanW( length, cp->thresholds ), sprung );
+			b3FloatW open = b3AndW( b3GreaterThanW( length, cp->thresholds ), sprungPoint );
 			b3FloatW s = b3BlendW( b3SubW( length, cp->firstApproaches ), b3ZeroW(), open );
 
 			// Apply speculative bias if separation is greater than zero, otherwise apply soft constraint bias
@@ -1868,22 +1896,23 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 										  b3MulW( pointImpulseScale, cp->normalImpulses ) );
 
 			b3FloatW solved = b3MaxW( b3SubW( cp->normalImpulses, negImpulse ), b3ZeroW() );
-			b3FloatW newImpulse = b3BlendW( solved, cp->normalImpulses, sprung );
+			b3FloatW newImpulse = b3BlendW( solved, cp->normalImpulses, sprungPoint );
 
 			if ( useBias )
 			{
 				b3FloatW k = b3BlendW( c->jointK, elasticJointK, b3GreaterThanW( cp->normalVels, b3ZeroW() ) );
 				b3FloatW forceMag = b3MaxW( b3MulW( k, b3SubW( cp->firstApproaches, length ) ), b3ZeroW() );
+				forceMag = b3BlendW( b3ZeroW(), forceMag, held );
 
 				cp->lastNormalImpulses = cp->normalImpulses;
-				newImpulse = b3BlendW( solved, b3MulW( b3BlendW( forceMag, b3ZeroW(), open ), h ), sprung );
+				newImpulse = b3BlendW( solved, b3MulW( b3BlendW( forceMag, b3ZeroW(), open ), h ), sprungPoint );
 			}
 
 			b3FloatW deltaImpulse = b3SubW( newImpulse, cp->normalImpulses );
 			cp->normalImpulses = newImpulse;
 			cp->totalNormalImpulses = b3AddW( cp->totalNormalImpulses, newImpulse );
 
-			b3FloatW bound = b3BlendW( newImpulse, cp->lastNormalImpulses, sprung );
+			b3FloatW bound = b3BlendW( newImpulse, cp->lastNormalImpulses, sprungPoint );
 			totalNormalImpulse = b3AddW( totalNormalImpulse, bound );
 			totalTwistLimit = b3AddW( totalTwistLimit, b3MulW( cp->leverArms, bound ) );
 
@@ -1939,11 +1968,6 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 				b3FloatW kApplied = b3MulW( b3SplatW( 0.2f ), c->jointK );
 				b3FloatW travel = b3MulW( kApplied, b3MulW( h, h ) );
 
-				b3Vec3W entryAv = bA.v;
-				b3Vec3W entryAw = bA.w;
-				b3Vec3W entryBv = bB.v;
-				b3Vec3W entryBw = bB.w;
-
 				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 				{
 					b3ContactConstraintPointWide* cp = c->points + pointIndex;
@@ -1951,14 +1975,7 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 					b3Vec3W rA = cp->anchorAs;
 					b3Vec3W rB = cp->anchorBs;
 
-					b3Vec3W vrA = b3AddVW( entryAv, b3CrossW( entryAw, rA ) );
-					b3Vec3W vrB = b3AddVW( entryBv, b3CrossW( entryBw, rB ) );
-					b3Vec3W vr = b3SubVW( vrB, vrA );
-
-					b3Vec2W vt = {
-						b3SubW( b3DotW( vr, tangent1 ), c->tangentVelocity1 ),
-						b3SubW( b3DotW( vr, tangent2 ), c->tangentVelocity2 ),
-					};
+					b3Vec2W vt = cp->perpVels;
 
 					b3Vec2W newImpulse = {
 						b3SubW( cp->frictionImpulses.x, b3MulW( travel, vt.x ) ),
@@ -1994,8 +2011,11 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 
 					b3Vec3W vrA = b3AddVW( bA.v, b3CrossW( bA.w, cp->anchorAs ) );
 					b3Vec3W vrB = b3AddVW( bB.v, b3CrossW( bB.w, cp->anchorBs ) );
+					b3Vec3W vr = b3SubVW( vrB, vrA );
 
-					cp->normalVels = b3DotW( b3SubVW( vrB, vrA ), c->normal );
+					cp->normalVels = b3DotW( vr, c->normal );
+					cp->perpVels.x = b3SubW( b3DotW( vr, c->tangent1 ), c->tangentVelocity1 );
+					cp->perpVels.y = b3SubW( b3DotW( vr, c->tangent2 ), c->tangentVelocity2 );
 				}
 			}
 
@@ -2264,6 +2284,8 @@ void b3StoreImpulses_Convex( b3SolverBlock block, b3StepContext* context, int wo
 					const float* normalImpulse = (float*)&cp->normalImpulses;
 					const float* firstApproach = (float*)&cp->firstApproaches;
 					const float* threshold = (float*)&cp->thresholds;
+					const float* pointFriction1 = (float*)&cp->frictionImpulses.x;
+					const float* pointFriction2 = (float*)&cp->frictionImpulses.y;
 					const float* totalNormalImpulse = (float*)&cp->totalNormalImpulses;
 					const float* normalVelocity = (float*)&cp->relativeVelocities;
 
@@ -2271,6 +2293,14 @@ void b3StoreImpulses_Convex( b3SolverBlock block, b3StepContext* context, int wo
 					mp->normalImpulse = normalImpulse[lane];
 					mp->firstApproach = firstApproach[lane];
 					mp->threshold = threshold[lane];
+
+					float p1 = pointFriction1[lane];
+					float p2 = pointFriction2[lane];
+					mp->frictionImpulse = (b3Vec3){
+						p1 * tangent1X[lane] + p2 * tangent2X[lane],
+						p1 * tangent1Y[lane] + p2 * tangent2Y[lane],
+						p1 * tangent1Z[lane] + p2 * tangent2Z[lane],
+					};
 
 					mp->totalNormalImpulse = totalNormalImpulse[lane];
 					mp->normalVelocity = normalVelocity[lane];

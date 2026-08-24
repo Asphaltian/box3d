@@ -2598,6 +2598,8 @@ typedef struct b3ManifoldPoint
 
 	float threshold;
 
+	b3Vec3 frictionImpulse;
+
 	/// The impulse along the manifold normal vector. Since Box3D uses sub-stepping, this is
 	/// result from the final sub-step.
 	float normalImpulse;

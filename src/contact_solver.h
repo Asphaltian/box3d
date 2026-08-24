@@ -14,6 +14,7 @@ typedef struct b3ManifoldConstraintPoint
 	float threshold;
 	float lastNormalImpulse;
 	float normalVel;
+	b3Vec2 perpVel;
 	b3Vec2 frictionImpulse;
 	float relativeVelocity;
 	float normalImpulse;
@@ -26,6 +27,7 @@ typedef struct b3ManifoldConstraint
 {
 	b3ManifoldConstraintPoint points[4];
 	int pointCount;
+	bool persisted;
 	b3Vec3 normal;
 	b3Vec3 tangent1;
 	b3Vec3 tangent2;
