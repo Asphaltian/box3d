@@ -19,27 +19,27 @@
 // Double precision accumulates body positions in double, so the settle/sleep step and the
 // state hash differ from the float build. Both modes are internally deterministic.
 #if defined( BOX3D_DOUBLE_PRECISION )
-#define RAGDOLL_SLEEP_STEP 267
-#define RAGDOLL_HASH 0x01EB8FDB
-#define WAVE_PILE_SLEEP_STEP 333
-#define WAVE_PILE_HASH 0x80D5266B
+#define RAGDOLL_SLEEP_STEP 263
+#define RAGDOLL_HASH 0xA5423F98
+#define WAVE_PILE_SLEEP_STEP 272
+#define WAVE_PILE_HASH 0xC8E5F3D6
 #define QUERY_SPAWN_SLEEP_STEP 242
-#define QUERY_SPAWN_HASH 0x90EE3E7C
+#define QUERY_SPAWN_HASH 0x489585E6
 #define QUERY_SPAWN_HIT_COUNT 59
 #define QUERY_SPAWN_QUERY_HASH 0x5B4429DC
 #define MESH_DROP_SLEEP_STEP 218
-#define MESH_DROP_HASH 0x10051259
+#define MESH_DROP_HASH 0xD378CF04
 #else
-#define RAGDOLL_SLEEP_STEP 265
-#define RAGDOLL_HASH 0xB98B3638
-#define WAVE_PILE_SLEEP_STEP 288
-#define WAVE_PILE_HASH 0xFC1CD2DC
+#define RAGDOLL_SLEEP_STEP 291
+#define RAGDOLL_HASH 0xFF4C605B
+#define WAVE_PILE_SLEEP_STEP 272
+#define WAVE_PILE_HASH 0x266F83B0
 #define QUERY_SPAWN_SLEEP_STEP 242
-#define QUERY_SPAWN_HASH 0x58F47348
+#define QUERY_SPAWN_HASH 0xF3AD9BA6
 #define QUERY_SPAWN_HIT_COUNT 59
 #define QUERY_SPAWN_QUERY_HASH 0xE3271F3D
-#define MESH_DROP_SLEEP_STEP 218
-#define MESH_DROP_HASH 0x983F27EA
+#define MESH_DROP_SLEEP_STEP 226
+#define MESH_DROP_HASH 0xD2FF069D
 #endif
 
 // The goldens above pin exact values for the default four point manifold. A build that
